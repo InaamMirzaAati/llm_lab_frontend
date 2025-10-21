@@ -22,16 +22,15 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Function to automatically adjust height
   const adjustHeight = () => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'  // Reset height to auto to calculate the new height
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`  // Set height to scrollHeight
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
     }
   }
 
   useEffect(() => {
-    adjustHeight()  // Adjust height when the component mounts
+    adjustHeight()
   }, [])
 
   const scrollToBottom = () => {
@@ -44,7 +43,7 @@ export default function Home() {
 
   useEffect(() => {
     getExperiments().then((res) => setExperiments(res.data))
-  }, [setExperiments])
+  }, [])
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return
@@ -102,8 +101,7 @@ export default function Home() {
 
               const newText = content
               if (!last.content.endsWith(newText)) {
-                const separator =
-                  last.content.endsWith(' ') || newText.startsWith(' ') ? '' : ' '
+                const separator = last.content.endsWith(' ') || newText.startsWith(' ') ? '' : ' '
                 last.content += separator + newText
               }
 
@@ -113,29 +111,6 @@ export default function Home() {
         }
       }
 
-      if (buffer.trim().startsWith('data:')) {
-        const content = buffer.replace(/^data:\s*/, '')
-        if (content && content !== '[DONE]') {
-          fullResponse += content
-          await new Promise((r) => setTimeout(r, 50))
-
-          setMessages((prev) => {
-            const updated = [...prev]
-            const last = updated[updated.length - 1]
-
-            const newText = content
-            if (!last.content.endsWith(newText)) {
-              const separator =
-                last.content.endsWith(' ') || newText.startsWith(' ') ? '' : ' '
-              last.content += separator + newText
-            }
-
-            return updated
-          })
-        }
-      }
-
-      // Save experiment after completion
       try {
         const saveRes = await generateLLM({
           prompt: currentPrompt,
@@ -143,19 +118,19 @@ export default function Home() {
           topP,
           model: selectedModel,
           response: fullResponse.trim(),
-        })
+        });
 
         if (saveRes.data) {
-          addExperiment(saveRes.data)
+          addExperiment(saveRes.data);
         }
       } catch (saveError) {
-        console.error('Failed to save experiment:', saveError)
+        console.error('Failed to save experiment:', saveError);
       }
-
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
 
   const handleHistoryClick = (expId: number) => {
     router.push(`/experiment/${expId}`)
