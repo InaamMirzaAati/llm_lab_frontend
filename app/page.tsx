@@ -3,11 +3,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, Send, Settings, ChevronDown, Sliders, SlidersHorizontal, SlidersIcon, ArrowUp } from 'lucide-react'
-import { getExperiments } from '@/lib/api'
+import { getExperiments, generateLLM } from '@/lib/api'
 import ExportButton from '@/components/ExportButton'
 import { useChatStore } from '@/store/useExperimentStore'
+import { useRouter } from 'next/navigation'
 
 export default function Home() {
+  const router = useRouter()
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -18,6 +20,19 @@ export default function Home() {
   const { experiments, setExperiments, addExperiment } = useChatStore()
   const [messages, setMessages] = useState<any[]>([])
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // Function to automatically adjust height
+  const adjustHeight = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'  // Reset height to auto to calculate the new height
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`  // Set height to scrollHeight
+    }
+  }
+
+  useEffect(() => {
+    adjustHeight()  // Adjust height when the component mounts
+  }, [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -26,7 +41,6 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom()
   }, [messages, loading])
-
 
   useEffect(() => {
     getExperiments().then((res) => setExperiments(res.data))
@@ -43,6 +57,8 @@ export default function Home() {
 
     const aiMsg = { role: 'assistant', content: '' }
     setMessages((prev) => [...prev, aiMsg])
+
+    let fullResponse = ''
 
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/llm/stream`, {
@@ -77,6 +93,7 @@ export default function Home() {
             if (content === '[DONE]') continue
             if (!content.trim()) continue
 
+            fullResponse += content + ' '
             await new Promise((r) => setTimeout(r, 50))
 
             setMessages((prev) => {
@@ -92,7 +109,6 @@ export default function Home() {
 
               return updated
             })
-
           }
         }
       }
@@ -100,6 +116,7 @@ export default function Home() {
       if (buffer.trim().startsWith('data:')) {
         const content = buffer.replace(/^data:\s*/, '')
         if (content && content !== '[DONE]') {
+          fullResponse += content
           await new Promise((r) => setTimeout(r, 50))
 
           setMessages((prev) => {
@@ -115,26 +132,47 @@ export default function Home() {
 
             return updated
           })
-
         }
       }
+
+      // Save experiment after completion
+      try {
+        const saveRes = await generateLLM({
+          prompt: currentPrompt,
+          temperature,
+          topP,
+          model: selectedModel,
+          response: fullResponse.trim(),
+        })
+
+        if (saveRes.data) {
+          addExperiment(saveRes.data)
+        }
+      } catch (saveError) {
+        console.error('Failed to save experiment:', saveError)
+      }
+
     } finally {
       setLoading(false)
     }
   }
 
+  const handleHistoryClick = (expId: number) => {
+    router.push(`/experiment/${expId}`)
+    setShowHistory(false)
+  }
 
   return (
     <main className="relative w-full h-screen bg-[#0f0f0f] text-gray-100 flex overflow-hidden">
       <aside
-        className={`fixed top-0 left-0 h-full w-72 bg-[#1a1a1a] border-r border-gray-800 p-4 flex flex-col z-40 transition-transform duration-300 transform ${showHistory ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-0 left-0 h-full w-72 bg-[#1a1a1a] border-r border-gray-800 pl-4 pd-4 pt-4 flex flex-col z-40 transition-transform duration-300 transform ${showHistory ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-200">Chatbot History</h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-2 scrollbar-hide">
+        <div className="flex-1 overflow-y-auto space-y-2 bg-[#222]">
           {experiments.length === 0 ? (
             <p className="text-sm text-gray-500 text-center mt-6">
               No conversations yet
@@ -143,10 +181,7 @@ export default function Home() {
             experiments.map((exp) => (
               <div
                 key={exp.id}
-                onClick={() => {
-                  window.location.href = `/experiment/${exp.id}`
-                  setShowHistory(false)
-                }}
+                onClick={() => handleHistoryClick(exp.id)}
                 className="p-3 bg-[#222] rounded-lg hover:bg-[#2e2e2e] border border-gray-700 cursor-pointer transition-all"
               >
                 <p className="text-sm text-gray-200 truncate">
@@ -211,7 +246,6 @@ export default function Home() {
                 <h3 className="text-sm font-semibold text-gray-300">Parameters</h3>
               </div>
 
-              {/* Temperature */}
               <div className="flex flex-col text-sm">
                 <label className="text-gray-400 mb-1">Temperature</label>
                 <select
@@ -235,7 +269,6 @@ export default function Home() {
                 </select>
               </div>
 
-              {/* Top-P */}
               <div className="flex flex-col text-sm">
                 <label className="text-gray-400 mb-1">Top-P</label>
                 <select
@@ -259,16 +292,12 @@ export default function Home() {
                 </select>
               </div>
             </div>
-
           </>
         )}
 
-
-        {/* Chat messages */}
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-[#0f0f0f]">
           {messages.length === 0 && !loading ? (
             <div className="flex items-center justify-center h-full text-gray-500 text-3xl">
-              {/* Start a new conversation by typing a prompt below. */}
               Welcome Back
             </div>
           ) : (
@@ -301,15 +330,12 @@ export default function Home() {
                 </div>
               )}
               <div ref={messagesEndRef} />
-
             </div>
           )}
         </div>
 
-
         <footer className="px-4 py-3 sticky bottom-3">
           <div className="flex items-center gap-2 max-w-4xl mx-auto">
-
             <div className="flex-1 flex items-center gap-2 bg-[#2a2a2a] rounded-full px-4 py-2 border border-gray-700 focus-within:border-indigo-500">
               <select
                 value={selectedModel}
@@ -322,15 +348,19 @@ export default function Home() {
               </select>
 
               <textarea
+                ref={textareaRef}
                 placeholder="Send a message..."
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => {
+                  setPrompt(e.target.value)
+                  adjustHeight()
+                }}
                 onKeyDown={(e) =>
                   e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleGenerate())
                 }
-                className="flex-1 bg-transparent resize-none border-none outline-none text-white placeholder-gray-400 py-1 text-sm leading-relaxed"
+                className="flex-1 bg-[#222] bg-transparent resize-none border-none outline-none text-white placeholder-gray-400 py-1 text-sm leading-relaxed"
                 rows={1}
-                style={{ maxHeight: '100px' }}
+                style={{ maxHeight: '55px' }}
               />
             </div>
 

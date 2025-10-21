@@ -1,6 +1,6 @@
 'use client'
 
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getExperiment } from '@/lib/api'
 import ComparisonChart from '@/components/ComparisonChart'
@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 
 export default function ExperimentDetail() {
   const params = useParams()
+  const router = useRouter()
   const id = Number(params?.id)
   const [exp, setExp] = useState<any>(null)
 
@@ -25,13 +26,20 @@ export default function ExperimentDetail() {
     )
 
   return (
-    <main className="min-h-screen w-full bg-gradient-to-b from-[#0a0a0a] to-[#141414] text-gray-100 px-3 py-3">
+    <main className="max-h-screen w-full text-gray-100 px-0 py-0">
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="max-w-3xl mx-auto bg-[#1a1a1a] border border-gray-800 rounded-2xl shadow-2xl p-5"
       >
+         {/* Back Button */}
+        <button
+          onClick={() => router.back()} 
+          className="text-indigo-600 hover:text-indigo-400 text-lg mb-1"
+        >
+          &larr; Back to Chat
+        </button>
         {/* Header */}
         <header className="mb-3">
           <h1 className="text-2xl font-semibold text-white mb-0">
@@ -55,7 +63,7 @@ export default function ExperimentDetail() {
           <h2 className="text-sm font-medium text-gray-400 mb-2 uppercase tracking-wide">
             Response
           </h2>
-          <div className="bg-[#222] border border-gray-700 rounded-lg p-2 text-sm text-gray-100 whitespace-pre-line h-20 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+          <div className="bg-[#222] border border-gray-700 rounded-lg p-2 text-sm text-gray-100 whitespace-pre-line h-20 overflow-y-auto">
             {exp.response}
           </div>
         </section>
